@@ -8,13 +8,13 @@ on:
         type: string
         description: >
           Patch level of common kernel manifest,
-          for example: 2021-11
+          for example: 2024-08
       version_name:
         required: true
         type: string
         description: >
           With SUBLEVEL of kernel,
-          for example: android12-5.10.66
+          for example: android12-5.10.218
       custom:
         required: true
         type: boolean
