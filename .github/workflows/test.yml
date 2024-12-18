@@ -1,4 +1,4 @@
-name: gki_kernel-docker
+name: test
 
 on: 
   workflow_dispatch:
