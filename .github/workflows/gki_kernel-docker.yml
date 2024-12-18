@@ -40,11 +40,29 @@ jobs:
     - name: Sync the kernel source code
       run: |
         cd $GITHUB_WORKSPACE
-        # 提取 version_name 的前两个部分（去掉修订号）
-        base_version=$(echo ${{ inputs.version_name }} | cut -d '.' -f 1-2)
-        echo $base_version
-        major_version=$(echo $base_version | sed -E 's/[^0-9]*([0-9]+).*/\1/')
+        # 从工作流输入获取 version_name
+        version_name="${{ github.event.inputs.version_name }}"
+
+        echo "输入的版本名称: '$version_name'"
+
+        # 通过移除修订号提取基础版本
+        base_version="${version_name%.*}"
+        base_version=$(echo "$base_version" | tr -d '\r\n')  # 移除任何隐藏字符
+
+        echo "基础版本是: '$base_version'"
+
+        # 使用正则表达式提取主版本号
+        if [[ "$base_version" =~ ([0-9]+) ]]; then
+          major_version="${BASH_REMATCH[1]}"
+          echo "主版本号是: '$major_version'"
+        else
+          echo "无法提取主版本号。"
+          exit 1
+        fi
+
+        # 构建操作系统版本号
         os_version_num="--os_version ${major_version}.0.0"
+        echo "操作系统版本号: $os_version_num"
         
         mkdir android-kernel
         cd android-kernel
@@ -58,12 +76,11 @@ jobs:
         git clone https://github.com/BI1PBUTHU/Enable-LXC-Dockers-for-Android-GKI-kernel.git gki-patch
         cp ./gki-patch/config/gki_defconfig-docker-android12-5.10 ./android-kernel/common/arch/arm64/configs/gki_defconfig
         cd ./android-kernel/common
-        if [ "$base_version" != "android12-5.10" ]; then
-          echo "Base version is not android12-5.10. Skipping patch application."
-        else
-          # 如果 base_version 等于 "android12-5.10"，则应用补丁
-          echo "Base version is android12-5.10. Applying patches..."
+         if [[ "$base_version" == "android12-5.10" ]]; then
+          echo "基础版本是 android12-5.10。正在应用补丁。"
           git apply $GITHUB_WORKSPACE/gki-patch/patchs/*.patch
+        else
+          echo "基础版本不是 android12-5.10。跳过补丁应用。"
         fi
         git clone https://github.com/BI1PBUTHU/android_kernel_docker.git -b main docker
         echo 'source "docker/Kconfig"' >> Kconfig
