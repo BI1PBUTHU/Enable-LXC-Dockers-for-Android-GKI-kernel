@@ -40,9 +40,15 @@ jobs:
     - name: Sync the kernel source code
       run: |
         cd $GITHUB_WORKSPACE
+        # 提取 version_name 的前两个部分（去掉修订号）
+        base_version=$(echo ${{ inputs.version_name }} | cut -d '.' -f 1-2)
+        echo $base_version
+        major_version=$(echo $base_version | sed -E 's/[^0-9]*([0-9]+).*/\1/')
+        os_version_num="--os_version ${major_version}.0.0"
+        
         mkdir android-kernel
         cd android-kernel
-        repo init --depth 1 -u https://android.googlesource.com/kernel/manifest -b common-android12-5.10-${{ inputs.os_patch_level }}
+        repo init --depth 1 -u https://android.googlesource.com/kernel/manifest -b common-$base_version-${{ inputs.os_patch_level }}
         repo sync
 
     - name: Apply patches and configuration files
@@ -67,13 +73,19 @@ jobs:
       run: |
         cd $GITHUB_WORKSPACE/android-kernel
         BUILD_CONFIG=common/build.config.gki.aarch64 build/config.sh savedefconfig
-        LTO=thin BUILD_CONFIG=common/build.config.gki.aarch64 build/build.sh
-
+        if [ -e build/build.sh ]; then
+            LTO=thin BUILD_CONFIG=common/build.config.gki.aarch64 build/build.sh CC="/usr/bin/ccache clang"
+        else
+            tools/bazel run --disk_cache=/home/runner/.cache/bazel --config=fast --config=stamp --lto=thin //common:kernel_aarch64_dist -- --dist_dir=dist
+        fi
     - name: Prepare artifacts
       id: prepareArtifacts
       run: |
         cd $GITHUB_WORKSPACE
-        OUTDIR=android-kernel/out/android12-5.10/dist
+        
+        # 设置 OUTDIR
+        OUTDIR="android-kernel/out/$base_version/dist"
+
         mkdir output
         cp $OUTDIR/Image ./output/
         cp $OUTDIR/Image.lz4 ./output/
@@ -82,18 +94,18 @@ jobs:
         git clone https://github.com/Kernel-SU/AnyKernel3
         rm -rf ./AnyKernel3/.git
         cp $OUTDIR/Image ./AnyKernel3/
-        wget https://dl.google.com/android/gki/gki-certified-boot-android12-5.10-${{ inputs.os_patch_level }}_r1.zip -O ./gki-kernel.zip
+        wget https://dl.google.com/android/gki/gki-certified-boot-$base_version-${{ inputs.os_patch_level }}_r1.zip -O ./gki-kernel.zip
         unzip -q ./gki-kernel.zip
         rm ./gki-kernel.zip
         cd $GITHUB_WORKSPACE/android-kernel
         echo "Unpack boot"
         ./tools/mkbootimg/unpack_bootimg.py --boot_img $GITHUB_WORKSPACE/boot*.img
         echo "Build boot.img"
-        ./tools/mkbootimg/mkbootimg.py --header_version 4 --kernel out/android12-5.10/dist/Image --ramdisk out/ramdisk --os_version 12.0.0 --os_patch_level ${{ inputs.os_patch_level }} -o $GITHUB_WORKSPACE/output/${{ inputs.version_name }}_${{ inputs.os_patch_level }}-boot.img
+        ./tools/mkbootimg/mkbootimg.py --header_version 4 --kernel out/$base_version/dist/Image --ramdisk out/ramdisk --os_version 12.0.0 --os_patch_level ${{ inputs.os_patch_level }} -o $GITHUB_WORKSPACE/output/${{ inputs.version_name }}_${{ inputs.os_patch_level }}-boot.img
         echo "Build boot-lz4.img"
-        ./tools/mkbootimg/mkbootimg.py --header_version 4 --kernel out/android12-5.10/dist/Image.lz4 --ramdisk out/ramdisk --os_version 12.0.0 --os_patch_level ${{ inputs.os_patch_level }} -o $GITHUB_WORKSPACE/output/${{ inputs.version_name }}_${{ inputs.os_patch_level }}-boot-lz4.img
+        ./tools/mkbootimg/mkbootimg.py --header_version 4 --kernel out/$base_version/dist/Image.lz4 --ramdisk out/ramdisk --os_version 12.0.0 --os_patch_level ${{ inputs.os_patch_level }} -o $GITHUB_WORKSPACE/output/${{ inputs.version_name }}_${{ inputs.os_patch_level }}-boot-lz4.img
         echo "Build boot-gz.img"
-        ./tools/mkbootimg/mkbootimg.py --header_version 4 --kernel $GITHUB_WORKSPACE/Image.gz --ramdisk out/ramdisk --os_version 12.0.0 --os_patch_level ${{ inputs.os_patch_level }} -o $GITHUB_WORKSPACE/output/${{ inputs.version_name }}_${{ inputs.os_patch_level }}-boot-gz.img
+        ./tools/mkbootimg/mkbootimg.py --header_version 4 --kernel out/$base_version/dist/Image.gz --ramdisk out/ramdisk --os_version 12.0.0 --os_patch_level ${{ inputs.os_patch_level }} -o $GITHUB_WORKSPACE/output/${{ inputs.version_name }}_${{ inputs.os_patch_level }}-boot-gz.img
 
     - name: Upload Image and Image.gz and boot.img
       uses: actions/upload-artifact@v4
