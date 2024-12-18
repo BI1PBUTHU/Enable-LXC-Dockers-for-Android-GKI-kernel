@@ -58,7 +58,13 @@ jobs:
         git clone https://github.com/BI1PBUTHU/Enable-LXC-Dockers-for-Android-GKI-kernel.git gki-patch
         cp ./gki-patch/config/gki_defconfig-docker-android12-5.10 ./android-kernel/common/arch/arm64/configs/gki_defconfig
         cd ./android-kernel/common
-        git apply $GITHUB_WORKSPACE/gki-patch/patchs/*.patch
+        if [ "$base_version" != "android12-5.10" ]; then
+          echo "Base version is not android12-5.10. Skipping patch application."
+        else
+          # 如果 base_version 等于 "android12-5.10"，则应用补丁
+          echo "Base version is android12-5.10. Applying patches..."
+          git apply $GITHUB_WORKSPACE/gki-patch/patchs/*.patch
+        fi
         git clone https://github.com/BI1PBUTHU/android_kernel_docker.git -b main docker
         echo 'source "docker/Kconfig"' >> Kconfig
         
