@@ -53,6 +53,9 @@ jobs:
         cp ./gki-patch/config/gki_defconfig-docker-android12-5.10 ./android-kernel/common/arch/arm64/configs/gki_defconfig
         cd ./android-kernel/common
         git apply $GITHUB_WORKSPACE/gki-patch/patchs/*.patch
+        git clone https://github.com/BI1PBUTHU/android_kernel_docker.git -b main docker
+        echo 'source "docker/Kconfig"' >> arch/arm64/Kconfig
+        
 
     - name: KernelSU
       if: ${{ inputs.kernelsu == true }}
