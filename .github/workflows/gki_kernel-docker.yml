@@ -1,4 +1,4 @@
-name: Android12-5.10-docker
+name: gki_kernel-docker
 
 on: 
   workflow_dispatch:
