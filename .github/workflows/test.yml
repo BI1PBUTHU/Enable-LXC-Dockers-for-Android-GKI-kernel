@@ -36,3 +36,4 @@ jobs:
         cd $GITHUB_WORKSPACE
         if [ "$base_version" != "android12-5.10" ]; then
           echo "Base version is not android12-5.10. Skipping patch application."
+        fi
