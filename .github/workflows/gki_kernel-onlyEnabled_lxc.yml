@@ -1,4 +1,4 @@
-name: Android12-5.10-Custom
+name: gki_kernel-onlyEnabled_lxc
 
 on: 
   workflow_dispatch:
