@@ -1,0 +1,39 @@
+name: gki_kernel-docker
+
+on: 
+  workflow_dispatch:
+    inputs:
+      version_name:
+        required: true
+        type: string
+        description: >
+          With SUBLEVEL of kernel,
+          for example: android12-5.10.218
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Dependencies
+      run: |
+        sudo apt install repo wget -y
+
+    - name: Sync the kernel source code
+      run: |
+        cd $GITHUB_WORKSPACE
+        # 提取 version_name 的前两个部分（去掉修订号）
+        base_version=$(echo ${{ inputs.version_name }} | cut -d '.' -f 1-2)
+        echo $base_version
+        major_version=$(echo $base_version | sed -E 's/[^0-9]*([0-9]+).*/\1/')
+        os_version_num="--os_version ${major_version}.0.0"
+  
+
+    - name: Apply patches and configuration files
+      if: ${{ inputs.custom == true }}
+      run: |
+        cd $GITHUB_WORKSPACE
+        if [ "$base_version" != "android12-5.10" ]; then
+          echo "Base version is not android12-5.10. Skipping patch application."
