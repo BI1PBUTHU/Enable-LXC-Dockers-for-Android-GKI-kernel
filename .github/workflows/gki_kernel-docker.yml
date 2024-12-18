@@ -35,11 +35,16 @@ jobs:
 
     - name: Install Dependencies
       run: |
-        sudo apt install repo wget -y
+        sudo apt update
+        sudo apt install -y repo wget
 
-    - name: Sync the kernel source code
+    - name: Sync the kernel source code and process version
+      shell: bash
       run: |
-        cd $GITHUB_WORKSPACE
+        set -e  # 如果命令失败，则立即退出
+
+        cd "$GITHUB_WORKSPACE"
+
         # 从工作流输入获取 version_name
         version_name="${{ github.event.inputs.version_name }}"
 
@@ -66,69 +71,89 @@ jobs:
         
         mkdir android-kernel
         cd android-kernel
-        repo init --depth 1 -u https://android.googlesource.com/kernel/manifest -b common-$base_version-${{ inputs.os_patch_level }}
+        repo init --depth 1 -u https://android.googlesource.com/kernel/manifest -b common-$base_version-${{ github.event.inputs.os_patch_level }}
         repo sync
+
+        # 导出变量供后续步骤使用
+        echo "BASE_VERSION=$base_version" >> $GITHUB_ENV
+        echo "OS_VERSION_NUM=$os_version_num" >> $GITHUB_ENV
 
     - name: Apply patches and configuration files
       if: ${{ inputs.custom == true }}
+      shell: bash
       run: |
-        cd $GITHUB_WORKSPACE
+        set -e  # 如果命令失败，则立即退出
+
+        cd "$GITHUB_WORKSPACE"
+
         git clone https://github.com/BI1PBUTHU/Enable-LXC-Dockers-for-Android-GKI-kernel.git gki-patch
         # cp ./gki-patch/config/gki_defconfig-docker-android12-5.10 ./android-kernel/common/arch/arm64/configs/gki_defconfig
+
         cd ./android-kernel/common
-         if [[ "$base_version" == "android12-5.10" ]]; then
+
+        echo "当前基础版本是: '$BASE_VERSION'"
+
+        if [[ "$BASE_VERSION" == "android12-5.10" ]]; then
           echo "基础版本是 android12-5.10。正在应用补丁。"
-          git apply $GITHUB_WORKSPACE/gki-patch/patchs/*.patch
+          git apply "$GITHUB_WORKSPACE/gki-patch/patchs/"*.patch
         else
           echo "基础版本不是 android12-5.10。跳过补丁应用。"
         fi
+
         git clone https://github.com/BI1PBUTHU/android_kernel_docker.git -b main docker
         echo 'source "docker/Kconfig"' >> Kconfig
-        
 
     - name: KernelSU
       if: ${{ inputs.kernelsu == true }}
       run: |
-          cd $GITHUB_WORKSPACE/android-kernel
-          curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -
+        set -e  # 如果命令失败，则立即退出
+
+        cd "$GITHUB_WORKSPACE/android-kernel"
+        curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -
 
     - name: Build Kernel
       run: |
-        cd $GITHUB_WORKSPACE/android-kernel
+        set -e  # 如果命令失败，则立即退出
+
+        cd "$GITHUB_WORKSPACE/android-kernel"
         BUILD_CONFIG=common/build.config.gki.aarch64 build/config.sh savedefconfig
         if [ -e build/build.sh ]; then
             LTO=thin BUILD_CONFIG=common/build.config.gki.aarch64 build/build.sh
         else
             tools/bazel run --disk_cache=/home/runner/.cache/bazel --config=fast --config=stamp --lto=thin //common:kernel_aarch64_dist -- --dist_dir=dist
         fi
-    - name: Prepare artifacts
-      id: prepareArtifacts
-      run: |
-        cd $GITHUB_WORKSPACE
-        
-        # 设置 OUTDIR
-        OUTDIR="android-kernel/out/$base_version/dist"
 
-        mkdir output
-        cp $OUTDIR/Image ./output/
-        cp $OUTDIR/Image.lz4 ./output/
-        cp $OUTDIR/Image ./
+    - name: Prepare artifacts
+      run: |
+        set -e  # 如果命令失败，则立即退出
+
+        cd "$GITHUB_WORKSPACE"
+
+        # 设置 OUTDIR
+        OUTDIR="android-kernel/out/$BASE_VERSION/dist"
+
+        mkdir -p output
+        cp "$OUTDIR/Image" ./output/
+        cp "$OUTDIR/Image.lz4" ./output/
+        cp "$OUTDIR/Image" ./
         gzip -n -k -f -9 Image >Image.gz
+
         git clone https://github.com/Kernel-SU/AnyKernel3
         rm -rf ./AnyKernel3/.git
-        cp $OUTDIR/Image ./AnyKernel3/
-        wget https://dl.google.com/android/gki/gki-certified-boot-$base_version-${{ inputs.os_patch_level }}_r1.zip -O ./gki-kernel.zip
+        cp "$OUTDIR/Image" ./AnyKernel3/
+        wget https://dl.google.com/android/gki/gki-certified-boot-$BASE_VERSION-${{ github.event.inputs.os_patch_level }}_r1.zip -O ./gki-kernel.zip
         unzip -q ./gki-kernel.zip
         rm ./gki-kernel.zip
-        cd $GITHUB_WORKSPACE/android-kernel
+
+        cd "$GITHUB_WORKSPACE/android-kernel"
         echo "Unpack boot"
-        ./tools/mkbootimg/unpack_bootimg.py --boot_img $GITHUB_WORKSPACE/boot*.img
+        ./tools/mkbootimg/unpack_bootimg.py --boot_img "$GITHUB_WORKSPACE/boot*.img"
         echo "Build boot.img"
-        ./tools/mkbootimg/mkbootimg.py --header_version 4 --kernel out/$base_version/dist/Image --ramdisk out/ramdisk --os_version $os_version_num --os_patch_level ${{ inputs.os_patch_level }} -o $GITHUB_WORKSPACE/output/${{ inputs.version_name }}_${{ inputs.os_patch_level }}-boot.img
+        ./tools/mkbootimg/mkbootimg.py --header_version 4 --kernel out/$BASE_VERSION/dist/Image --ramdisk out/ramdisk --os_version $OS_VERSION_NUM --os_patch_level ${{ github.event.inputs.os_patch_level }} -o "$GITHUB_WORKSPACE/output/${{ github.event.inputs.version_name }}_${{ github.event.inputs.os_patch_level }}-boot.img"
         echo "Build boot-lz4.img"
-        ./tools/mkbootimg/mkbootimg.py --header_version 4 --kernel out/$base_version/dist/Image.lz4 --ramdisk out/ramdisk --os_version $os_version_num --os_patch_level ${{ inputs.os_patch_level }} -o $GITHUB_WORKSPACE/output/${{ inputs.version_name }}_${{ inputs.os_patch_level }}-boot-lz4.img
+        ./tools/mkbootimg/mkbootimg.py --header_version 4 --kernel out/$BASE_VERSION/dist/Image.lz4 --ramdisk out/ramdisk --os_version $OS_VERSION_NUM --os_patch_level ${{ github.event.inputs.os_patch_level }} -o "$GITHUB_WORKSPACE/output/${{ github.event.inputs.version_name }}_${{ github.event.inputs.os_patch_level }}-boot-lz4.img"
         echo "Build boot-gz.img"
-        ./tools/mkbootimg/mkbootimg.py --header_version 4 --kernel out/$base_version/dist/Image.gz --ramdisk out/ramdisk --os_version $os_version_num --os_patch_level ${{ inputs.os_patch_level }} -o $GITHUB_WORKSPACE/output/${{ inputs.version_name }}_${{ inputs.os_patch_level }}-boot-gz.img
+        ./tools/mkbootimg/mkbootimg.py --header_version 4 --kernel out/$BASE_VERSION/dist/Image.gz --ramdisk out/ramdisk --os_version $OS_VERSION_NUM --os_patch_level ${{ github.event.inputs.os_patch_level }} -o "$GITHUB_WORKSPACE/output/${{ github.event.inputs.version_name }}_${{ github.event.inputs.os_patch_level }}-boot-gz.img"
 
     - name: Upload Image and Image.gz and boot.img
       uses: actions/upload-artifact@v4
