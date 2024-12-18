@@ -32,7 +32,6 @@ jobs:
   
 
     - name: Apply patches and configuration files
-      if: ${{ inputs.custom == true }}
       run: |
         cd $GITHUB_WORKSPACE
         if [ "$base_version" != "android12-5.10" ]; then
