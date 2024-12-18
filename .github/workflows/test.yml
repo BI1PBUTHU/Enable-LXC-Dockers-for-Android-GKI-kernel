@@ -1,4 +1,4 @@
-name: test
+name: Test Workflow
 
 on: 
   workflow_dispatch:
@@ -7,33 +7,68 @@ on:
         required: true
         type: string
         description: >
-          With SUBLEVEL of kernel,
-          for example: android12-5.10.218
+          内核的子级版本，例如: android12-5.10.218
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+    # 检出代码
+    - name: Checkout Repository
+      uses: actions/checkout@v4
 
+    # 安装依赖项
     - name: Install Dependencies
       run: |
-        sudo apt install repo wget -y
+        sudo apt update
+        sudo apt install -y repo wget
 
-    - name: Sync the kernel source code
+    # 同步内核源码
+    - name: Sync the Kernel Source Code
       run: |
-        cd $GITHUB_WORKSPACE
-        # 提取 version_name 的前两个部分（去掉修订号）
-        base_version=$(echo android12-5.10.218 | cut -d '.' -f 1-2 | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-        echo "Base version is: '$base_version'"
-        major_version=$(echo $base_version | sed -E 's/[^0-9]*([0-9]+).*/\1/')
+        cd "$GITHUB_WORKSPACE"
+        # 在这里添加同步内核源码的命令
+        # 例如:
+        # repo init -u <repository_url> -b <branch>
+        # repo sync
+
+    # 处理 version_name
+    - name: Process Version Name
+      shell: bash
+      run: |
+        set -e  # 如果命令失败，则退出
+
+        # 从工作流输入获取 version_name
+        version_name="${{ github.event.inputs.version_name }}"
+
+        echo "输入的版本名称: '$version_name'"
+
+        # 通过移除修订号提取基础版本
+        base_version="${version_name%.*}"
+        base_version=$(echo "$base_version" | tr -d '\r\n')  # 移除任何隐藏字符
+
+        echo "基础版本是: '$base_version'"
+
+        # 使用正则表达式提取主版本号
+        if [[ "$base_version" =~ ([0-9]+) ]]; then
+          major_version="${BASH_REMATCH[1]}"
+          echo "主版本号是: '$major_version'"
+        else
+          echo "无法提取主版本号。"
+          exit 1
+        fi
+
+        # 构建操作系统版本号
         os_version_num="--os_version ${major_version}.0.0"
-  
+        echo "操作系统版本号: $os_version_num"
 
-    - name: Apply patches and configuration files
-      run: |
-        cd $GITHUB_WORKSPACE
-        if [ "$base_version" != "android12-5.10" ]; then
-          echo "Base version is not android12-5.10. Skipping patch application."
+        # 比较基础版本并在匹配时应用补丁
+        if [[ "$base_version" == "android12-5.10" ]]; then
+          echo "基础版本是 android12-5.10。正在应用补丁。"
+          # 在此插入补丁应用命令
+          # 例如:
+          # git apply patch.diff
+        else
+          echo "基础版本不是 android12-5.10。跳过补丁应用。"
         fi
