@@ -64,10 +64,6 @@ jobs:
           echo "无法提取主版本号。"
           exit 1
         fi
-
-        # 构建操作系统版本号
-        os_version_num="--os_version ${major_version}.0.0"
-        echo "操作系统版本号: $os_version_num"
         
         mkdir android-kernel
         cd android-kernel
@@ -158,11 +154,11 @@ jobs:
 
         ./tools/mkbootimg/unpack_bootimg.py --boot_img $GITHUB_WORKSPACE/boot*.img
         echo "Build boot.img"
-        ./tools/mkbootimg/mkbootimg.py --header_version 4 --kernel out/$BASE_VERSION/dist/Image --ramdisk out/ramdisk --os_version $OS_VERSION_NUM --os_patch_level ${{ github.event.inputs.os_patch_level }} -o $GITHUB_WORKSPACE/output/${{ github.event.inputs.version_name }}_${{ github.event.inputs.os_patch_level }}-boot.img
+        ./tools/mkbootimg/mkbootimg.py --header_version 4 --kernel out/$BASE_VERSION/dist/Image --ramdisk out/ramdisk --os_version ${major_version}.0.0 --os_patch_level ${{ github.event.inputs.os_patch_level }} -o $GITHUB_WORKSPACE/output/${{ github.event.inputs.version_name }}_${{ github.event.inputs.os_patch_level }}-boot.img
         echo "Build boot-lz4.img"
-        ./tools/mkbootimg/mkbootimg.py --header_version 4 --kernel out/$BASE_VERSION/dist/Image.lz4 --ramdisk out/ramdisk --os_version $OS_VERSION_NUM --os_patch_level ${{ github.event.inputs.os_patch_level }} -o $GITHUB_WORKSPACE/output/${{ github.event.inputs.version_name }}_${{ github.event.inputs.os_patch_level }}-boot-lz4.img
+        ./tools/mkbootimg/mkbootimg.py --header_version 4 --kernel out/$BASE_VERSION/dist/Image.lz4 --ramdisk out/ramdisk --os_version ${major_version}.0.0 --os_patch_level ${{ github.event.inputs.os_patch_level }} -o $GITHUB_WORKSPACE/output/${{ github.event.inputs.version_name }}_${{ github.event.inputs.os_patch_level }}-boot-lz4.img
         echo "Build boot-gz.img"
-        ./tools/mkbootimg/mkbootimg.py --header_version 4 --kernel out/$BASE_VERSION/dist/Image.gz --ramdisk out/ramdisk --os_version $OS_VERSION_NUM --os_patch_level ${{ github.event.inputs.os_patch_level }} -o $GITHUB_WORKSPACE/output/${{ github.event.inputs.version_name }}_${{ github.event.inputs.os_patch_level }}-boot-gz.img
+        ./tools/mkbootimg/mkbootimg.py --header_version 4 --kernel out/$BASE_VERSION/dist/Image.gz --ramdisk out/ramdisk --os_version ${major_version}.0.0 --os_patch_level ${{ github.event.inputs.os_patch_level }} -o $GITHUB_WORKSPACE/output/${{ github.event.inputs.version_name }}_${{ github.event.inputs.os_patch_level }}-boot-gz.img
 
     - name: Upload Image and Image.gz and boot.img
       uses: actions/upload-artifact@v4
