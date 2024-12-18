@@ -36,7 +36,7 @@ jobs:
     - name: Install Dependencies
       run: |
         sudo apt update
-        sudo apt install -y repo wget
+        sudo apt install -y repo wget unzip
 
     - name: Sync the kernel source code and process version
       shell: bash
@@ -145,8 +145,17 @@ jobs:
         unzip -q ./gki-kernel.zip
         rm ./gki-kernel.zip
 
+        # 添加调试信息：列出解压后的文件
+        echo "列出解压后的文件："
+        ls -la "$GITHUB_WORKSPACE"
+
         cd "$GITHUB_WORKSPACE/android-kernel"
         echo "Unpack boot"
+
+        # 添加调试信息：确认 boot*.img 是否存在
+        echo "查找 boot*.img 文件："
+        ls -la "$GITHUB_WORKSPACE" | grep boot
+
         ./tools/mkbootimg/unpack_bootimg.py --boot_img "$GITHUB_WORKSPACE/boot*.img"
         echo "Build boot.img"
         ./tools/mkbootimg/mkbootimg.py --header_version 4 --kernel out/$BASE_VERSION/dist/Image --ramdisk out/ramdisk --os_version $OS_VERSION_NUM --os_patch_level ${{ github.event.inputs.os_patch_level }} -o "$GITHUB_WORKSPACE/output/${{ github.event.inputs.version_name }}_${{ github.event.inputs.os_patch_level }}-boot.img"
